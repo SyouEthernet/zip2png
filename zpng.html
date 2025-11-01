@@ -1,0 +1,575 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>ZPNG — 文件 / 文字 / 黑白 PNG 三态互转（离线单文件版）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{--bg:#0f172a;--fg:#e5e7eb;--muted:#94a3b8;--acc:#22d3ee;--card:#111827;--btn:#1f2937;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;}
+  html,body{background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0}
+  header{padding:20px 16px;border-bottom:1px solid #222}
+  h1{font-size:20px;margin:0 0 6px}
+  header .sub{color:var(--muted);font-size:13px}
+  main{max-width:1100px;margin:0 auto;padding:18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width: 960px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid #222;border-radius:12px;padding:16px}
+  .card h2{font-size:18px;margin:0 0 8px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .row > *{margin:6px 0}
+  input[type="file"],textarea,select,input,button{border-radius:8px;border:1px solid #2a2a2a;background:#0b1220;color:var(--fg)}
+  textarea{width:100%;min-height:180px;padding:10px}
+  input[type="text"],input[type="number"],input[type="password"]{padding:8px}
+  .btn{background:var(--btn);border-color:#333;padding:10px 14px;cursor:pointer}
+  .btn:hover{outline:1px solid #344;border-color:#333}
+  .accent{color:var(--acc)}
+  .muted{color:var(--muted)}
+  .out{padding:10px;border:1px dashed #2a2a2a;border-radius:8px;background:#0b1220;word-break:break-all}
+  .small{font-size:12px}
+  .kv{display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:center}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #2a2a2a;background:#0b1220}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+  .sep{height:1px;background:#222;margin:12px 0}
+  .hint{font-size:12px;color:var(--muted)}
+  a.dl{display:inline-block;margin-top:8px;padding:8px 12px;border:1px solid #2b2b2b;border-radius:8px;background:#0b1220;color:var(--acc);text-decoration:none}
+  .section-title{font-weight:600;margin:10px 0 6px}
+  .env{margin:0 0 12px;padding:10px;border:1px dashed #444;border-radius:8px;background:#101826}
+</style>
+<header>
+  <h1>ZPNG <span class="muted">— 文件 / 文字 / 黑白 PNG 三态互转</span></h1>
+  <div class="sub">AES‑256‑GCM（若可用） + scrypt；SHA‑256；PNG 仅黑白两色；全程本地运行。</div>
+</header>
+<main>
+  <div id="env" class="env hint">环境检查中…</div>
+  <div class="grid">
+
+    <!-- 文件 -> PNG -->
+    <div class="card">
+      <h2>文件 ➜ PNG</h2>
+      <div class="row">
+        <input id="f2p_file" type="file" />
+        <label class="pill">宽度(px)
+          <input id="f2p_width" class="small" type="number" min="0" placeholder="0=自动" style="width:90px;margin-left:6px">
+        </label>
+        <label class="pill"><input id="f2p_sha" type="checkbox" checked> SHA‑256 校验</label>
+        <label class="pill"><input id="f2p_enc" type="checkbox"> 口令加密</label>
+        <input id="f2p_pwd" type="password" placeholder="口令（勾选加密后填写）" style="min-width:180px">
+      </div>
+      <div class="row">
+        <span class="pill">目标文件名
+          <input id="f2p_outname" class="small" type="text" placeholder="xxx.png" style="width:220px;margin-left:6px">
+        </span>
+        <button id="f2p_run" class="btn">生成 PNG</button>
+      </div>
+      <div class="section-title">拍摄信息（只写入 PNG 文本元数据 iTXt）</div>
+      <div class="kv">
+        <div>标题 Title</div><input id="meta_title" type="text" placeholder="可留空">
+        <div>作者/拍摄者</div><input id="meta_artist" type="text" placeholder="可留空">
+        <div>说明/备注</div><input id="meta_comment" type="text" placeholder="可留空">
+        <div>拍摄时间</div><input id="meta_dt" type="text" placeholder="2025-10-31 14:03:00">
+        <div>设备厂商</div><input id="meta_make" type="text" placeholder="Acme">
+        <div>设备型号</div><input id="meta_model" type="text" placeholder="AcmeCam X1">
+        <div>序列号</div><input id="meta_serial" type="text" placeholder="SN123456">
+        <div>拍摄地点</div><input id="meta_loc" type="text" placeholder="Shenzhen, CN">
+      </div>
+      <div id="f2p_log" class="hint" style="margin-top:8px"></div>
+      <div id="f2p_out" class="out" style="display:none"></div>
+    </div>
+
+    <!-- PNG -> 文件 -->
+    <div class="card">
+      <h2>PNG ➜ 文件</h2>
+      <div class="row">
+        <input id="p2f_file" type="file" accept="image/png" />
+        <input id="p2f_pwd" type="password" placeholder="若加密，此处输入口令" style="min-width:180px">
+      </div>
+      <div class="row">
+        <span class="pill">目标文件名
+          <input id="p2f_outname" class="small" type="text" placeholder="restored.bin" style="width:220px;margin-left:6px">
+        </span>
+        <button id="p2f_run" class="btn">提取文件</button>
+      </div>
+      <div id="p2f_log" class="hint" style="margin-top:8px"></div>
+      <div id="p2f_out" class="out" style="display:none"></div>
+    </div>
+
+    <!-- 文件 -> 文字 -->
+    <div class="card">
+      <h2>文件 ➜ 文字</h2>
+      <div class="row">
+        <input id="f2t_file" type="file" />
+        <label class="pill"><input id="f2t_sha" type="checkbox" checked> SHA‑256 校验</label>
+        <label class="pill"><input id="f2t_enc" type="checkbox"> 口令加密</label>
+        <input id="f2t_pwd" type="password" placeholder="口令（勾选加密后填写）" style="min-width:180px">
+        <label class="pill"><input id="f2t_armor" type="checkbox" checked> BEGIN/END 头</label>
+        <label class="pill">每行宽
+          <input id="f2t_wrap" class="small" type="number" min="0" value="76" style="width:80px;margin-left:6px">
+        </label>
+      </div>
+      <div class="row">
+        <span class="pill">目标文件名
+          <input id="f2t_outname" class="small" type="text" placeholder="out.txt" style="width:220px;margin-left:6px">
+        </span>
+        <button id="f2t_run" class="btn">生成文字</button>
+      </div>
+      <div id="f2t_log" class="hint" style="margin-top:8px"></div>
+      <textarea id="f2t_out" placeholder="这里会生成装甲文本…"></textarea>
+      <div><a id="f2t_dl" class="dl" style="display:none">下载 .txt</a></div>
+    </div>
+
+    <!-- 文字 -> 文件 -->
+    <div class="card">
+      <h2>文字 ➜ 文件</h2>
+      <div class="row">
+        <textarea id="t2f_in" placeholder="粘贴文字装甲或 Base64…"></textarea>
+      </div>
+      <div class="row">
+        <input id="t2f_pwd" type="password" placeholder="若加密，此处输入口令" style="min-width:180px">
+        <span class="pill">目标文件名
+          <input id="t2f_outname" class="small" type="text" placeholder="restored.bin" style="width:220px;margin-left:6px">
+        </span>
+        <button id="t2f_run" class="btn">还原文件</button>
+      </div>
+      <div id="t2f_log" class="hint" style="margin-top:8px"></div>
+      <div id="t2f_out" class="out" style="display:none"></div>
+    </div>
+
+    <!-- PNG -> 文字 -->
+    <div class="card">
+      <h2>PNG ➜ 文字（不解密，直接导出内部 blob）</h2>
+      <div class="row">
+        <input id="p2t_file" type="file" accept="image/png" />
+        <label class="pill"><input id="p2t_armor" type="checkbox" checked> BEGIN/END 头</label>
+        <label class="pill">每行宽
+          <input id="p2t_wrap" class="small" type="number" min="0" value="76" style="width:80px;margin-left:6px">
+        </label>
+      </div>
+      <div class="row">
+        <span class="pill">目标文件名
+          <input id="p2t_outname" class="small" type="text" placeholder="out.txt" style="width:220px;margin-left:6px">
+        </span>
+        <button id="p2t_run" class="btn">导出文字</button>
+      </div>
+      <div id="p2t_log" class="hint" style="margin-top:8px"></div>
+      <textarea id="p2t_out" placeholder="这里会导出装甲文本…"></textarea>
+      <div><a id="p2t_dl" class="dl" style="display:none">下载 .txt</a></div>
+    </div>
+
+    <!-- 文字 -> PNG -->
+    <div class="card">
+      <h2>文字 ➜ PNG</h2>
+      <div class="row">
+        <textarea id="t2p_in" placeholder="粘贴文字装甲或 Base64…"></textarea>
+      </div>
+      <div class="row">
+        <label class="pill">宽度(px)
+          <input id="t2p_width" class="small" type="number" min="0" placeholder="0=自动" style="width:90px;margin-left:6px">
+        </label>
+        <span class="pill">目标文件名
+          <input id="t2p_outname" class="small" type="text" placeholder="from-text.png" style="width:220px;margin-left:6px">
+        </span>
+        <button id="t2p_run" class="btn">生成 PNG</button>
+      </div>
+      <div class="section-title">可选：为 PNG 写入“照片式”文本元数据</div>
+      <div class="kv">
+        <div>标题 Title</div><input id="tmeta_title" type="text">
+        <div>作者/拍摄者</div><input id="tmeta_artist" type="text">
+        <div>说明/备注</div><input id="tmeta_comment" type="text">
+        <div>拍摄时间</div><input id="tmeta_dt" type="text" placeholder="2025-10-31 14:03:00">
+        <div>设备厂商</div><input id="tmeta_make" type="text">
+        <div>设备型号</div><input id="tmeta_model" type="text">
+        <div>序列号</div><input id="tmeta_serial" type="text">
+        <div>拍摄地点</div><input id="tmeta_loc" type="text">
+      </div>
+      <div id="t2p_log" class="hint" style="margin-top:8px"></div>
+      <div id="t2p_out" class="out" style="display:none"></div>
+    </div>
+
+  </div>
+  <div class="sep"></div>
+  <div class="hint">
+    ⚠️ 不要用会“压图/改图”的工具转存（社交软件、在线预览另存等）。像素改 1 bit，加密/校验都会失败。<br>
+    ✅ PNG 是标准 1bit 灰度；“拍摄信息”以 iTXt 文本块写入；与 Python 完全兼容。
+  </div>
+</main>
+
+<script>
+/* ===== 环境检测 ===== */
+const SUPPORTS_AESGCM = !!(window.crypto && window.crypto.subtle && typeof window.crypto.subtle.encrypt === "function");
+const SUPPORTS_RNG = !!(window.crypto && typeof window.crypto.getRandomValues === "function");
+const te = new TextEncoder(), td = new TextDecoder();
+function envMsg(){
+  const parts = [];
+  parts.push(SUPPORTS_RNG ? "✔ 随机数可用" : "✖ 随机数不可用（将退化成不安全随机，禁用加密）");
+  parts.push(SUPPORTS_AESGCM ? "✔ AES‑GCM 可用（可口令加密）" : "✖ AES‑GCM 不可用（本页会禁用加密，其他功能正常）");
+  return parts.join(" ｜ ");
+}
+document.getElementById("env").innerHTML = "环境检测： " + envMsg();
+
+/* ===== 小工具/CRC/Adler/Base64 同前（省略注释以缩短） ===== */
+function u8(v){ return new Uint8Array(v); }
+function concatU8(...parts){ let len=0; for(const p of parts) len+=p.length; const out=new Uint8Array(len); let off=0; for(const p of parts){ out.set(p,off); off+=p.length; } return out; }
+function be32(n){ return u8([ (n>>>24)&255, (n>>>16)&255, (n>>>8)&255, n&255 ]); }
+function be64(nBig){ const out=new Uint8Array(8); for(let i=7;i>=0;i--){ out[i]=Number(nBig & 255n); nBig >>= 8n; } return out; }
+function readBE64(bytes,off){ let v=0n; for(let i=0;i<8;i++){ v=(v<<8n)|BigInt(bytes[off+i]); } return v; }
+function le16(n){ return u8([ n & 255, (n>>>8) & 255 ]); }
+function bname(name){ return (name||"").replace(/^.*[\\/]/,""); }
+function stem(name){ const m=bname(name).match(/^(.*?)(\.[^.]*)?$/); return m? m[1] : "out"; }
+const CRC_TAB=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++){ c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);} t[n]=c>>>0; } return t;})();
+function crc32(data){ let c=0xFFFFFFFF; for(let i=0;i<data.length;i++){ c=CRC_TAB[(c^data[i])&255]^(c>>>8); } return (~c)>>>0; }
+function adler32(data){ let s1=1,s2=0,MOD=65521; for(let i=0;i<data.length;i++){ s1+=data[i]; if(s1>=MOD)s1-=MOD; s2+=s1; if(s2>=MOD)s2-=MOD; } return ((s2<<16)|s1)>>>0; }
+const ARMOR_BEGIN="-----BEGIN ZPNG-ARMOR-----", ARMOR_END="-----END ZPNG-ARMOR-----";
+function b64encode(bytes){ let bin=""; const cs=String.fromCharCode; for(let i=0;i<bytes.length;i++) bin+=cs(bytes[i]); return btoa(bin); }
+function b64decode(text){ const bin=atob(text); const out=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i); return out; }
+function armorBlob(blob,wrap=76,armor=true){ const body=b64encode(blob); const lines=wrap>0? body.match(new RegExp(`.{1,${wrap}}`,'g')).join("\n") : body; return armor? `${ARMOR_BEGIN}\n${lines}\n${ARMOR_END}\n` : (lines+"\n"); }
+function dearmorToBlob(text){ const s=text.trim(); const m=s.match(/-----BEGIN .*?-----([\s\S]*?)-----END .*?-----/); const body=(m?m[1]:s).replace(/[^A-Za-z0-9+/=\r\n]/g,"").replace(/[\r\n]/g,""); return b64decode(body); }
+
+/* ===== PNG 基元 ===== */
+const MAGIC = te.encode("ZPNG");
+const FLAG_SHA256 = 1, FLAG_ENC = 2;
+function pngChunk(type4, data){ const type=te.encode(type4), len=be32(data.length), crc=be32(crc32(concatU8(type,data))); return concatU8(len,type,data,crc); }
+function zlibNoCompression(data){
+  const head=u8([0x78,0x01]); const chunks=[]; let i=0;
+  while(i<data.length){ const rem=data.length-i, n=Math.min(65535, rem), bfinal=(i+n>=data.length)?1:0;
+    const hdr=u8([bfinal?0x01:0x00, ...le16(n), ...le16(~n & 0xFFFF)]); chunks.push(hdr, data.subarray(i,i+n)); i+=n; }
+  const all=concatU8(...chunks), ad=adler32(data); return concatU8(head, all, be32(ad));
+}
+function itxtChunk(keyword,text){ const key=te.encode(keyword), nul=u8([0]); const payload=concatU8(key,nul,u8([0]),u8([0]),u8([]),nul,u8([]),nul,te.encode(text)); return pngChunk("iTXt", payload); }
+function makePNGFromBits(bitPacked,width,height,metaKV){
+  const rowBytes=Math.ceil(width/8), scan=new Uint8Array(height*(1+rowBytes));
+  for(let y=0;y<height;y++){ scan[y*(1+rowBytes)]=0; scan.set(bitPacked.subarray(y*rowBytes,(y+1)*rowBytes), y*(1+rowBytes)+1); }
+  const IHDR=pngChunk("IHDR", concatU8(be32(width),be32(height),u8([1]),u8([0]),u8([0]),u8([0]),u8([0])));
+  const SIG=u8([137,80,78,71,13,10,26,10]); const texts=[];
+  for(const [k,v] of Object.entries(metaKV||{})){ if(v==null||v==="") continue; texts.push(itxtChunk(k,String(v))); }
+  const IDAT=pngChunk("IDAT", zlibNoCompression(scan)), IEND=pngChunk("IEND", u8([]));
+  return new Blob([SIG,IHDR,...texts,IDAT,IEND], {type:"image/png"});
+}
+function chooseLayout(totalBytes, reqWidth=0, minRowBytes=256, maxRowBytes=8192){
+  let rowBytes; if(reqWidth&&reqWidth>0) rowBytes=Math.ceil(reqWidth/8);
+  else { const target=Math.max(1, Math.floor(Math.sqrt(totalBytes))); rowBytes=Math.max(minRowBytes, Math.min(maxRowBytes, target)); }
+  const width=rowBytes*8, height=Math.ceil(totalBytes/rowBytes); return {rowBytes,width,height};
+}
+async function pngToBitPackedViaCanvas(file){
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=url; });
+  const w=img.naturalWidth, h=img.naturalHeight;
+  const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true}); ctx.drawImage(img,0,0); URL.revokeObjectURL(url);
+  const imgd=ctx.getImageData(0,0,w,h).data; const rowBytes=Math.ceil(w/8); const out=new Uint8Array(rowBytes*h);
+  for(let y=0;y<h;y++){ for(let x=0;x<w;x++){ const r=imgd[(y*w+x)*4]; const bit=(r>=128)?1:0; const byteIndex=y*rowBytes+(x>>3); const bitPos=7-(x&7); out[byteIndex]|=(bit<<bitPos); } }
+  return {packed:out,width:w,height:h,rowBytes};
+}
+
+/* ===== 纯 JS SHA-256/HMAC/PBKDF2/scrypt（BigInt 修复） ===== */
+function sha256js(msg){
+  const K=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+  const l=msg.length; const withOne=l+1; const k=((withOne+8+63)&~63)-withOne-8;
+  const buf=new Uint8Array(l+1+k+8); buf.set(msg,0); buf[l]=0x80;
+  const lenBits = BigInt(l) * 8n;
+  for(let i=0;i<8;i++){ buf[buf.length-1-i] = Number((lenBits >> (8n * BigInt(i))) & 255n); }
+  const w=new Uint32Array(64);
+  for(let i=0;i<buf.length;i+=64){
+    for(let j=0;j<16;j++){ const off=i+4*j; w[j]=(buf[off]<<24)|(buf[off+1]<<16)|(buf[off+2]<<8)|(buf[off+3]); }
+    for(let j=16;j<64;j++){ const s0=(w[j-15]>>>7 | w[j-15]<<25) ^ (w[j-15]>>>18 | w[j-15]<<14) ^ (w[j-15]>>>3);
+                             const s1=(w[j-2]>>>17 | w[j-2]<<15) ^ (w[j-2]>>>19 | w[j-2]<<13) ^ (w[j-2]>>>10);
+                             w[j]=(w[j-16]+s0+w[j-7]+s1)>>>0; }
+    let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+    for(let j=0;j<64;j++){
+      const S1=(e>>>6 | e<<26) ^ (e>>>11 | e<<21) ^ (e>>>25 | e<<7);
+      const ch=(e&f)^(~e&g);
+      const t1=(h+S1+ch+K[j]+w[j])>>>0;
+      const S0=(a>>>2 | a<<30) ^ (a>>>13 | a<<19) ^ (a>>>22 | a<<10);
+      const maj=(a&b)^(a&c)^(b&c);
+      const t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    h0=(h0+a)>>>0; h1=(h1+b)>>>0; h2=(h2+c)>>>0; h3=(h3+d)>>>0; h4=(h4+e)>>>0; h5=(h5+f)>>>0; h6=(h6+g)>>>0; h7=(h7+h)>>>0;
+  }
+  const out=new Uint8Array(32); const hs=[h0,h1,h2,h3,h4,h5,h6,h7];
+  for(let i=0;i<8;i++){ out[i*4]=(hs[i]>>>24)&255; out[i*4+1]=(hs[i]>>>16)&255; out[i*4+2]=(hs[i]>>>8)&255; out[i*4+3]=hs[i]&255; }
+  return out;
+}
+function hmacSha256(key,data){
+  const block=64; if(key.length>block) key=sha256js(key);
+  if(key.length<block){ const k=new Uint8Array(block); k.set(key); key=k; }
+  const o=new Uint8Array(block), i=new Uint8Array(block);
+  for(let idx=0;idx<block;idx++){ o[idx]=key[idx]^0x5c; i[idx]=key[idx]^0x36; }
+  return sha256js(concatU8(o, sha256js(concatU8(i, data))));
+}
+function pbkdf2_sha256(passBytes, salt, iter, dkLen){
+  const hLen=32; const l=Math.ceil(dkLen/hLen); const r=dkLen-(l-1)*hLen;
+  const DK=new Uint8Array(dkLen); let off=0;
+  for(let i=1;i<=l;i++){
+    const INT=new Uint8Array([0,0,0,i&255]); let U=hmacSha256(passBytes, concatU8(salt,INT)); let T=U.slice();
+    for(let c=2;c<=iter;c++){ U=hmacSha256(passBytes, U); for(let j=0;j<hLen;j++) T[j]^=U[j]; }
+    const tlen=(i===l)?r:hLen; DK.set(T.subarray(0,tlen), off); off+=tlen;
+  }
+  return DK;
+}
+function ROTL(x,n){ return ((x<<n)|(x>>>(32-n)))>>>0; }
+function salsa208_64(in64){
+  const x=new Uint32Array(16); for(let i=0;i<16;i++){ x[i]=(in64[4*i]|(in64[4*i+1]<<8)|(in64[4*i+2]<<16)|(in64[4*i+3]<<24))>>>0; }
+  let a=x.slice(0);
+  for(let i=0;i<8;i+=2){
+    a[ 4]^=ROTL((a[ 0]+a[12])>>>0,7);  a[ 8]^=ROTL((a[ 4]+a[ 0])>>>0,9);  a[12]^=ROTL((a[ 8]+a[ 4])>>>0,13); a[ 0]^=ROTL((a[12]+a[ 8])>>>0,18);
+    a[ 9]^=ROTL((a[ 5]+a[ 1])>>>0,7);  a[13]^=ROTL((a[ 9]+a[ 5])>>>0,9);  a[ 1]^=ROTL((a[13]+a[ 9])>>>0,13); a[ 5]^=ROTL((a[ 1]+a[13])>>>0,18);
+    a[14]^=ROTL((a[10]+a[ 6])>>>0,7);  a[ 2]^=ROTL((a[14]+a[10])>>>0,9);  a[ 6]^=ROTL((a[ 2]+a[14])>>>0,13); a[10]^=ROTL((a[ 6]+a[ 2])>>>0,18);
+    a[ 3]^=ROTL((a[15]+a[11])>>>0,7);  a[ 7]^=ROTL((a[ 3]+a[15])>>>0,9);  a[11]^=ROTL((a[ 7]+a[ 3])>>>0,13); a[15]^=ROTL((a[11]+a[ 7])>>>0,18);
+    a[ 1]^=ROTL((a[ 0]+a[ 3])>>>0,7);  a[ 2]^=ROTL((a[ 1]+a[ 0])>>>0,9);  a[ 3]^=ROTL((a[ 2]+a[ 1])>>>0,13); a[ 0]^=ROTL((a[ 3]+a[ 2])>>>0,18);
+    a[ 6]^=ROTL((a[ 5]+a[ 4])>>>0,7);  a[ 7]^=ROTL((a[ 6]+a[ 5])>>>0,9);  a[ 4]^=ROTL((a[ 7]+a[ 6])>>>0,13); a[ 5]^=ROTL((a[ 4]+a[ 7])>>>0,18);
+    a[11]^=ROTL((a[10]+a[ 9])>>>0,7);  a[ 8]^=ROTL((a[11]+a[10])>>>0,9);  a[ 9]^=ROTL((a[ 8]+a[11])>>>0,13); a[10]^=ROTL((a[ 9]+a[ 8])>>>0,18);
+    a[12]^=ROTL((a[15]+a[14])>>>0,7);  a[13]^=ROTL((a[12]+a[15])>>>0,9);  a[14]^=ROTL((a[13]+a[12])>>>0,13); a[15]^=ROTL((a[14]+a[13])>>>0,18);
+  }
+  for(let i=0;i<16;i++){ a[i]=(a[i]+x[i])>>>0; }
+  const out=new Uint8Array(64); for(let i=0;i<16;i++){ const v=a[i]; out[4*i]=v&255; out[4*i+1]=(v>>>8)&255; out[4*i+2]=(v>>>16)&255; out[4*i+3]=(v>>>24)&255; } return out;
+}
+function blockmix_salsa8(B,r){
+  const X=new Uint8Array(64); X.set(B.subarray((2*r-1)*64,2*r*64)); const Y=new Uint8Array(128*r);
+  for(let i=0;i<2*r;i++){ for(let j=0;j<64;j++) X[j]^=B[i*64+j]; const T=salsa208_64(X); X.set(T); Y.set(T, i*64); }
+  const out=new Uint8Array(128*r); for(let i=0;i<r;i++) out.set(Y.subarray(2*i*64,(2*i+1)*64), i*64);
+  for(let i=0;i<r;i++) out.set(Y.subarray((2*i+1)*64,(2*i+2)*64), (i+r)*64);
+  return out;
+}
+function integerify(B,r){ const off=(2*r-1)*64; return (B[off]|(B[off+1]<<8)|(B[off+2]<<16)|(B[off+3]<<24))>>>0; }
+function scrypt(passBytes, salt, N=1<<14, r=8, p=1, dkLen=32){
+  const B=pbkdf2_sha256(passBytes, salt, 1, p*128*r);
+  const XY=new Uint8Array(128*r), V=new Uint8Array(128*r*N);
+  for(let i=0;i<p;i++){
+    XY.set(B.subarray(i*128*r,(i+1)*128*r));
+    for(let j=0;j<N;j++){ V.set(XY,j*128*r); XY.set(blockmix_salsa8(XY,r)); }
+    for(let j=0;j<N;j++){ const j2=integerify(XY,r)&(N-1); for(let k=0;k<128*r;k++) XY[k]^=V[j2*128*r+k]; XY.set(blockmix_salsa8(XY,r)); }
+    B.set(XY,i*128*r);
+  }
+  return pbkdf2_sha256(passBytes, B, 1, dkLen);
+}
+
+/* ===== AES-GCM（WebCrypto；不可用时禁用加密） ===== */
+function getRand(n){ if(SUPPORTS_RNG){ return crypto.getRandomValues(new Uint8Array(n)); } const x=new Uint8Array(n); for(let i=0;i<n;i++) x[i]=Math.floor(Math.random()*256); return x; }
+async function aesGcmEncrypt(keyBytes,nonce,aad,plain){ const key=await crypto.subtle.importKey("raw",keyBytes,"AES-GCM",false,["encrypt"]); const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:nonce,additionalData:aad,tagLength:128},key,plain); return new Uint8Array(ct); }
+async function aesGcmDecrypt(keyBytes,nonce,aad,cipher){ const key=await crypto.subtle.importKey("raw",keyBytes,"AES-GCM",false,["decrypt"]); const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:nonce,additionalData:aad,tagLength:128},key,cipher); return new Uint8Array(pt); }
+
+/* ===== Blob 编解码（与 Python 一致） ===== */
+async function makeBlob(data,withSHA=false,password=""){
+  let flags=0; if(withSHA) flags|=FLAG_SHA256; const lenBE=be64(BigInt(data.length));
+  if(password && SUPPORTS_AESGCM){
+    flags|=FLAG_ENC; const salt=getRand(16), nonce=getRand(12);
+    const key=scrypt(te.encode(password), salt, 1<<14, 8, 1, 32);
+    const inner = withSHA ? concatU8(sha256js(data), data) : data;
+    const aad = concatU8(MAGIC, u8([flags]), lenBE, salt, nonce);
+    const cipher = await aesGcmEncrypt(key, nonce, aad, inner);
+    return concatU8(MAGIC, u8([flags]), lenBE, salt, nonce, cipher);
+  } else {
+    const extra = withSHA ? sha256js(data) : new Uint8Array();
+    return concatU8(MAGIC, u8([flags]), lenBE, extra, data);
+  }
+}
+async function parseBlob(stream,password=""){
+  if(stream.length<13) throw new Error("数据不足以包含头部");
+  if(!(stream[0]===MAGIC[0] && stream[1]===MAGIC[1] && stream[2]===MAGIC[2] && stream[3]===MAGIC[3]))
+    throw new Error("MAGIC 不匹配：不是 ZPNG blob");
+  const flags=stream[4], payloadLen=Number(readBE64(stream,5)); let off=13;
+  if(flags & FLAG_ENC){
+    if(!SUPPORTS_AESGCM) throw new Error("此 blob 启用了加密，但当前环境不支持 AES‑GCM");
+    if(stream.length<off+28) throw new Error("数据不足（SALT/NONCE）");
+    const salt=stream.subarray(off,off+16), nonce=stream.subarray(off+16,off+28); off+=28;
+    const innerLen=payloadLen + ((flags&FLAG_SHA256)?32:0), encLen=innerLen+16;
+    if(stream.length<off+encLen) throw new Error("密文不足（可能被截断）");
+    if(!password) throw new Error("此 blob 启用了加密，需要口令");
+    const key=scrypt(te.encode(password), salt, 1<<14, 8, 1, 32);
+    const aad=concatU8(MAGIC, u8([flags]), be64(BigInt(payloadLen)), salt, nonce);
+    let inner; try{ inner=await aesGcmDecrypt(key, nonce, aad, stream.subarray(off,off+encLen)); }catch(e){ throw new Error("解密失败：口令错误或数据损坏"); }
+    if(flags & FLAG_SHA256){
+      const expect=inner.subarray(0,32), body=inner.subarray(32), real=sha256js(body);
+      for(let i=0;i<32;i++) if(expect[i]!==real[i]) throw new Error("SHA‑256 校验失败：内容已被修改");
+      return {payload:body, consumed:off+encLen, flags, payloadLen};
+    }else{
+      return {payload:inner, consumed:off+encLen, flags, payloadLen};
+    }
+  }else{
+    let expect=null; if(flags & FLAG_SHA256){ if(stream.length<off+32) throw new Error("数据不足（SHA‑256）"); expect=stream.subarray(off,off+32); off+=32; }
+    if(stream.length<off+payloadLen) throw new Error("数据不足（有效负载被截断）");
+    const payload=stream.subarray(off,off+payloadLen);
+    if(expect){ const real=sha256js(payload); for(let i=0;i<32;i++) if(expect[i]!==real[i]) throw new Error("SHA‑256 校验失败"); }
+    return {payload, consumed:off+payloadLen, flags, payloadLen};
+  }
+}
+
+/* ===== UI glue（目标文件名 + 与 CLI 参数对齐） ===== */
+function flagsString(flags){ return ((flags&FLAG_ENC)?"ENC+":"")+((flags&FLAG_SHA256)?"SHA256":"0"); }
+function kvMeta(prefix){
+  return {
+    "Title":        document.getElementById(prefix+"title")?.value || "",
+    "Author":       document.getElementById(prefix+"artist")?.value || "",
+    "Description":  document.getElementById(prefix+"comment")?.value || "",
+    "Software":     "ZPNG",
+    "Creation Time":document.getElementById(prefix+"dt")?.value || "",
+    "Make":         document.getElementById(prefix+"make")?.value || "",
+    "Model":        document.getElementById(prefix+"model")?.value || "",
+    "Camera Serial Number": document.getElementById(prefix+"serial")?.value || "",
+    "Location":     document.getElementById(prefix+"loc")?.value || "",
+  };
+}
+function setEncEnabled(enabled){
+  [["f2p_enc","f2p_pwd"],["f2t_enc","f2t_pwd"]].forEach(([c,p])=>{
+    document.getElementById(c).disabled=!enabled;
+    document.getElementById(p).disabled=!enabled;
+  });
+  const env=document.getElementById("env");
+  if(!enabled) env.innerHTML += "<br><span class='warn'>提示：当前环境不支持 AES‑GCM，加密选项已禁用；你仍可做其他无损转换。</span>";
+}
+setEncEnabled(SUPPORTS_AESGCM);
+
+/* 默认输出名联动 */
+document.getElementById("f2p_file").addEventListener("change", e=>{
+  const f=e.target.files[0]; if(!f) return; document.getElementById("f2p_outname").value=stem(f.name)+".png";
+});
+document.getElementById("p2f_file").addEventListener("change", e=>{
+  const f=e.target.files[0]; if(!f) return; document.getElementById("p2f_outname").value=stem(f.name)+".bin";
+});
+document.getElementById("f2t_file").addEventListener("change", e=>{
+  const f=e.target.files[0]; if(!f) return; document.getElementById("f2t_outname").value=stem(f.name)+".txt";
+});
+document.getElementById("p2t_file").addEventListener("change", e=>{
+  const f=e.target.files[0]; if(!f) return; document.getElementById("p2t_outname").value=stem(f.name)+".txt";
+});
+document.getElementById("t2p_outname").value="from-text.png";
+document.getElementById("t2f_outname").value="restored.bin";
+
+/* 文件 -> PNG */
+document.getElementById("f2p_run").onclick = async () => {
+  const f=document.getElementById("f2p_file").files[0]; const log=document.getElementById("f2p_log"); const out=document.getElementById("f2p_out"); out.style.display="none"; out.textContent="";
+  if(!f){ log.textContent="请选择输入文件。"; return; }
+  const withSHA=document.getElementById("f2p_sha").checked;
+  const enc=document.getElementById("f2p_enc").checked && SUPPORTS_AESGCM;
+  const pwd=document.getElementById("f2p_pwd").value;
+  if(enc && !pwd){ log.textContent="已勾选加密，请输入口令。"; return; }
+  const width=parseInt(document.getElementById("f2p_width").value||"0",10) || 0;
+  const outname=(document.getElementById("f2p_outname").value||"").trim() || (stem(f.name)+".png");
+  log.textContent="读取文件…";
+  const data=new Uint8Array(await f.arrayBuffer());
+  try{
+    log.textContent="构建 blob…";
+    const blob=await makeBlob(data, withSHA, enc?pwd:"");
+    const layout=chooseLayout(blob.length, width);
+    const packed=new Uint8Array(layout.height*layout.rowBytes); packed.set(blob);
+    const meta=kvMeta("meta_"); meta["X-Original-Filename"]=f.name; meta["X-ZPNG-Flags"]=flagsString(blob[4]||0);
+    const png=makePNGFromBits(packed, layout.width, layout.height, meta);
+    const url=URL.createObjectURL(png);
+    out.innerHTML=`<a class="dl" download="${bname(outname)}" href="${url}">下载 ${bname(outname)}</a>
+      <div class="hint">尺寸 ${layout.width}×${layout.height}；blob=${blob.length} B；黑白 1bit PNG。</div>`;
+    out.style.display="block"; log.textContent="完成。";
+  }catch(e){ log.textContent="失败："+e.message; }
+};
+
+/* PNG -> 文件 */
+document.getElementById("p2f_run").onclick = async () => {
+  const f=document.getElementById("p2f_file").files[0]; const pwd=document.getElementById("p2f_pwd").value; const outname=(document.getElementById("p2f_outname").value||"").trim() || "restored.bin";
+  const log=document.getElementById("p2f_log"); const out=document.getElementById("p2f_out"); out.style.display="none"; out.textContent="";
+  if(!f){ log.textContent="请选择 PNG 文件。"; return; }
+  try{
+    log.textContent="解析 PNG，恢复位流…";
+    const {packed}=await pngToBitPackedViaCanvas(f);
+    log.textContent="解析 ZPNG blob…";
+    const {payload}=await parseBlob(packed, pwd||"");
+    const bb=new Blob([payload],{type:"application/octet-stream"}); const url=URL.createObjectURL(bb);
+    out.innerHTML=`<a class="dl" download="${bname(outname)}" href="${url}">下载 ${bname(outname)}</a>
+      <div class="hint">Payload=${payload.length} 字节。</div>`;
+    out.style.display="block"; log.textContent="完成。";
+  }catch(e){ log.textContent="失败："+e.message; }
+};
+
+/* 文件 -> 文字 */
+document.getElementById("f2t_run").onclick = async () => {
+  const f=document.getElementById("f2t_file").files[0]; const withSHA=document.getElementById("f2t_sha").checked;
+  const enc=document.getElementById("f2t_enc").checked && SUPPORTS_AESGCM; const pwd=document.getElementById("f2t_pwd").value;
+  const armor=document.getElementById("f2t_armor").checked; const wrap=parseInt(document.getElementById("f2t_wrap").value||"76",10)||0;
+  const outname=(document.getElementById("f2t_outname").value||"").trim() || "out.txt";
+  const outText=document.getElementById("f2t_out"); const log=document.getElementById("f2t_log"); const dl=document.getElementById("f2t_dl"); dl.style.display="none"; dl.removeAttribute("href");
+  if(!f){ log.textContent="请选择输入文件。"; return; }
+  if(enc && !pwd){ log.textContent="已勾选加密，请输入口令。"; return; }
+  try{
+    log.textContent="读取文件…";
+    const data=new Uint8Array(await f.arrayBuffer());
+    log.textContent="构建 blob…";
+    const blob=await makeBlob(data, withSHA, enc?pwd:"");
+    const txt=armorBlob(blob, wrap, armor);
+    outText.value=txt;
+    const bb=new Blob([txt],{type:"text/plain;charset=utf-8"}); const url=URL.createObjectURL(bb);
+    dl.href=url; dl.download=bname(outname); dl.textContent="下载 "+bname(outname); dl.style.display="inline-block";
+    log.textContent="完成。";
+  }catch(e){ log.textContent="失败："+e.message; }
+};
+
+/* 文字 -> 文件 */
+document.getElementById("t2f_run").onclick = async () => {
+  const text=document.getElementById("t2f_in").value.trim(); const pwd=document.getElementById("t2f_pwd").value;
+  const outname=(document.getElementById("t2f_outname").value||"").trim() || "restored.bin";
+  const log=document.getElementById("t2f_log"); const out=document.getElementById("t2f_out"); out.style.display="none"; out.textContent="";
+  if(!text){ log.textContent="请粘贴文字装甲或 Base64 文本。"; return; }
+  try{
+    log.textContent="解装甲…";
+    const blob=dearmorToBlob(text);
+    log.textContent="解析 ZPNG blob…";
+    const {payload}=await parseBlob(blob, pwd||"");
+    const bb=new Blob([payload],{type:"application/octet-stream"}); const url=URL.createObjectURL(bb);
+    out.innerHTML=`<a class="dl" download="${bname(outname)}" href="${url}">下载 ${bname(outname)}</a>
+      <div class="hint">Payload=${payload.length} 字节。</div>`;
+    out.style.display="block"; log.textContent="完成。";
+  }catch(e){ log.textContent="失败："+e.message; }
+};
+
+/* PNG -> 文字（不解密） */
+document.getElementById("p2t_run").onclick = async () => {
+  const f=document.getElementById("p2t_file").files[0]; const armor=document.getElementById("p2t_armor").checked; const wrap=parseInt(document.getElementById("p2t_wrap").value||"76",10)||0;
+  const outname=(document.getElementById("p2t_outname").value||"").trim() || "out.txt";
+  const out=document.getElementById("p2t_out"); const log=document.getElementById("p2t_log"); const dl=document.getElementById("p2t_dl"); dl.style.display="none";
+  if(!f){ log.textContent="请选择 PNG 文件。"; return; }
+  try{
+    log.textContent="解析 PNG，恢复位流…";
+    const {packed,width:w,height:h}=await pngToBitPackedViaCanvas(f);
+    if(packed.length<13){ log.textContent="PNG 内容不足"; return; }
+    if(!(packed[0]===MAGIC[0] && packed[1]===MAGIC[1] && packed[2]===MAGIC[2] && packed[3]===MAGIC[3])){
+      log.textContent="这张 PNG 不是 ZPNG。"; return;
+    }
+    const flags=packed[4], payloadLen=Number(readBE64(packed,5)); let need=13;
+    need += (flags&FLAG_ENC) ? (28 + payloadLen + ((flags&FLAG_SHA256)?32:0) + 16)
+                             : (((flags&FLAG_SHA256)?32:0) + payloadLen);
+    if(packed.length<need){ log.textContent="PNG 内部 blob 不完整或被截断。"; return; }
+    const blob=packed.subarray(0, need);
+    const txt=armorBlob(blob, wrap, armor);
+    out.value=txt;
+    const bb=new Blob([txt],{type:"text/plain;charset=utf-8"}); const url=URL.createObjectURL(bb);
+    const a=document.getElementById("p2t_dl"); a.href=url; a.download=bname(outname); a.textContent="下载 "+bname(outname); a.style.display="inline-block";
+    log.textContent=`完成。尺寸 ${w}×${h}；blob=${blob.length} B。`;
+  }catch(e){ log.textContent="失败："+e.message; }
+};
+
+/* 文字 -> PNG */
+document.getElementById("t2p_run").onclick = async () => {
+  const text=document.getElementById("t2p_in").value.trim(); const width=parseInt(document.getElementById("t2p_width").value||"0",10)||0;
+  const outname=(document.getElementById("t2p_outname").value||"").trim() || "from-text.png";
+  const log=document.getElementById("t2p_log"); const out=document.getElementById("t2p_out"); out.style.display="none"; out.textContent="";
+  if(!text){ log.textContent="请粘贴文字装甲或 Base64 文本。"; return; }
+  try{
+    const blob=dearmorToBlob(text);
+    const layout=chooseLayout(blob.length, width);
+    const packed=new Uint8Array(layout.height*layout.rowBytes); packed.set(blob);
+    const meta={
+      "Title":document.getElementById("tmeta_title").value||"",
+      "Author":document.getElementById("tmeta_artist").value||"",
+      "Description":document.getElementById("tmeta_comment").value||"",
+      "Software":"ZPNG",
+      "Creation Time":document.getElementById("tmeta_dt").value||"",
+      "Make":document.getElementById("tmeta_make").value||"",
+      "Model":document.getElementById("tmeta_model").value||"",
+      "Camera Serial Number":document.getElementById("tmeta_serial").value||"",
+      "Location":document.getElementById("tmeta_loc").value||"",
+      "X-ZPNG-Flags": ((blob[4]||0)&2?"ENC+":"")+((blob[4]||0)&1?"SHA256":"0")
+    };
+    const png=makePNGFromBits(packed, layout.width, layout.height, meta);
+    const url=URL.createObjectURL(png);
+    out.innerHTML=`<a class="dl" download="${bname(outname)}" href="${url}">下载 ${bname(outname)}</a>
+      <div class="hint">尺寸 ${layout.width}×${layout.height}；blob=${blob.length} B；黑白 1bit PNG。</div>`;
+    out.style.display="block"; log.textContent="完成。";
+  }catch(e){ log.textContent="失败："+e.message; }
+};
+</script>
